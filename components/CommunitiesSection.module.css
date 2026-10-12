@@ -38,3 +38,42 @@
  .wide .projects section + section { padding: 28px 0 0; border-left: 0; border-top: 1px solid #e6e0ef; }
  .card { padding: 15px; border-radius: 28px; } .grid { gap: 16px; }
 }
+
+.section { max-width: 1600px; }
+.section h2 { font-size: clamp(22px, 1.5vw, 28px); }
+.projects ul { font-size: 18px; }
+@media (max-width: 639px) { .summary, .projects ul { font-size: 17px; } }
+
+/* Landing section proportions from the final Figma. */
+.section {
+  width: min(var(--content-width), calc(100% - 48px));
+  max-width: none;
+  margin: 0 auto;
+  padding: var(--section-gap) 0;
+}
+.section h2 {
+  margin: 0 0 46px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: var(--text-section);
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.grid { gap: 28px; }
+.card {
+  border-color: #c9c7cc;
+  border-radius: 42px;
+  box-shadow: none;
+  padding: 30px;
+}
+@media (max-width: 900px) {
+  .section { width: min(var(--content-width), calc(100% - 40px)); }
+  .grid { gap: 20px; max-width: none; }
+  .card { padding: 22px; border-radius: 32px; }
+}
+@media (max-width: 700px) {
+  .section { width: calc(100% - 32px); }
+  .section h2 { margin-bottom: 28px; }
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .card { padding: 16px; border-radius: 26px; }
+}

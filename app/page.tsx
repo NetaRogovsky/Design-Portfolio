@@ -2,19 +2,17 @@ import { CommunitiesSection } from '@/components/CommunitiesSection';
 import { ContactFooter } from '@/components/ContactFooter';
 import { Navigation } from '@/components/Navigation';
 import { Hero } from '@/components/Hero';
+import { ProductSection } from '@/components/ProductSection';
 
 export default function Home() {
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
-    <Navigation />
+    <Navigation variant="landing" />
     <main id="main">
       <Hero />
-      <section className="next-section" id="product" aria-labelledby="product-title">
-        <h2 id="product-title">Product</h2>
-        <p>Selected work, coming into focus.</p>
-      </section>
+      <ProductSection />
       <CommunitiesSection />
     </main>
-    <ContactFooter />
+    <ContactFooter variant="landing" />
   </>;
 }

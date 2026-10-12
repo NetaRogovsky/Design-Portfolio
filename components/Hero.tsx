@@ -1,5 +1,6 @@
 import { Starfield } from './Starfield';
 import { ParticleRing } from './ParticleRing';
+import { HeroFade } from './HeroFade';
 
 export function IntroStatement() {
   return <h1 className="intro"><span>Designing</span><br />with curiosity, clarity,<br />and a little personality.</h1>;
@@ -7,8 +8,8 @@ export function IntroStatement() {
 
 export function LocationInfo() {
   return <div className="location" id="about">
-    <p>Based in NYC area</p>
-    <p>B.S Human-Computer Interaction @ NJIT</p>
+    <p>Product Designer based in New York City</p>
+    <p>B.S. Human-Computer Interaction @ NJIT</p>
   </div>;
 }
 
@@ -17,5 +18,6 @@ export function Hero() {
     <Starfield />
     <div className="composition"><ParticleRing /><IntroStatement /></div>
     <LocationInfo />
+    <HeroFade />
   </section>;
 }

@@ -7,14 +7,16 @@ function random(seed: number) {
   const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return value - Math.floor(value);
 }
-// A soft highlight-to-amber-to-bronze ramp using the supplied colors only.
-const goldStops = [[191, 113, 35], [234, 162, 91], [241, 187, 132]];
-function gold(angle: number) {
-  const position = (0.5 + 0.5 * Math.cos(angle + Math.PI * 0.65)) * 2;
-  const index = Math.min(1, Math.floor(position));
+// Blend silver, powder blue, lavender, and dusty pink seamlessly around the ring.
+// Approximately 25% more linear-light luminance, with the same pastel color ratios.
+const colorStops = [[203, 208, 219], [193, 219, 238], [188, 179, 235], [231, 184, 200]];
+function particleColor(angle: number) {
+  const turn = angle / (Math.PI * 2) + 0.325;
+  const position = ((turn % 1 + 1) % 1) * colorStops.length;
+  const index = Math.floor(position);
   const blend = position - index;
-  return goldStops[index].map((channel, i) =>
-    Math.round(channel + (goldStops[index + 1][i] - channel) * blend)
+  return colorStops[index].map((channel, i) =>
+    Math.round(channel + (colorStops[(index + 1) % colorStops.length][i] - channel) * blend)
   ).join(',');
 }
 
@@ -75,7 +77,7 @@ export function ParticleRing() {
         const perspective = 1 / (1 - z / (radius * 4));
         const px = width / 2 + (rotatedX * Math.cos(roll) - pitchedY * Math.sin(roll)) * perspective;
         const py = height / 2 + (rotatedX * Math.sin(roll) + pitchedY * Math.cos(roll)) * perspective;
-        ctx.fillStyle = `rgba(${gold(angle)},${p.alpha})`;
+        ctx.fillStyle = `rgba(${particleColor(angle)},${p.alpha})`;
         const size = p.size * Math.max(0.85, radius / 255) * perspective;
         ctx.fillRect(px, py, size, size);
       }
@@ -148,7 +150,7 @@ export function ParticleRing() {
         {particles.slice(0, 1200).map((p, i) => <circle key={i}
           cx={(300 + Math.cos(p.phase) * 165 * (1 + p.offset)).toFixed(3)}
           cy={(300 + Math.sin(p.phase) * 158 * (1 + p.offset)).toFixed(3)}
-          r={(p.size * 0.85).toFixed(3)} fill={`rgb(${gold(p.phase)})`} opacity="0.7" />)}
+          r={(p.size * 0.85).toFixed(3)} fill={`rgb(${particleColor(p.phase)})`} opacity="0.7" />)}
       </svg>
       <canvas ref={canvasRef} />
     </div>

@@ -1,7 +1,7 @@
 // Adapted from React Bits / David Haz. See public/lanyard/LICENSE.react-bits.
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, extend, useFrame, useThree, type ThreeElement, type ThreeEvent } from '@react-three/fiber';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Canvas, events, extend, useFrame, useThree, type ThreeElement, type ThreeEvent } from '@react-three/fiber';
 import { useGLTF, useTexture, Environment, Lightformer } from '@react-three/drei';
 import {
   BallCollider,
@@ -44,6 +44,7 @@ const FRONT_UV_RECT = { x: 0, y: 0, w: 0.5, h: 0.755 };
 const BACK_UV_RECT = { x: 0.5, y: 0, w: 0.5, h: 0.757 };
 
 interface LanyardProps {
+  anchor?: number;
   active?: boolean;
   reduced?: boolean;
   position?: [number, number, number];
@@ -58,6 +59,7 @@ interface LanyardProps {
 }
 
 export default function Lanyard({
+  anchor = 0,
   active = true,
   reduced = false,
   position = [0, 0, 10],
@@ -82,16 +84,24 @@ export default function Lanyard({
     <div className="lanyard-wrapper">
       <Canvas
         frameloop={active ? (reduced ? "demand" : "always") : "never"}
-        style={{ touchAction: "pan-y" }}
+        style={{ pointerEvents: "none" }}
+        eventSource={document.body}
+        events={(state) => ({ ...events(state), compute: (event, root) => {
+          const bounds = root.gl.domElement.getBoundingClientRect();
+          root.pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
+          root.raycaster.setFromCamera(root.pointer, root.camera);
+        } })}
         camera={{ position, fov }}
         dpr={[1, isMobile ? 1.5 : 2]}
         gl={{ alpha: transparent }}
         onCreated={({ gl }) => gl.setClearColor(new THREE.Color(0x000000), transparent ? 0 : 1)}
       >
+        <StageCamera anchor={anchor} />
         <ambientLight intensity={0.8} />
         <Physics paused={!active || reduced} gravity={gravity} timeStep={isMobile ? 1 / 30 : 1 / 60}>
           <Band
             isMobile={isMobile}
+            dropIn={!reduced}
             frontImage={frontImage}
             backImage={backImage}
             imageFit={imageFit}
@@ -134,10 +144,24 @@ export default function Lanyard({
   );
 }
 
+// A wider transparent canvas retains the card's original pixel size and anchor.
+function StageCamera({ anchor }: { anchor: number }) {
+  const { camera, size, invalidate } = useThree();
+  useLayoutEffect(() => {
+    const perspective = camera as THREE.PerspectiveCamera;
+    const worldHeight = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(perspective.fov / 2));
+    camera.position.setX((size.width / 2 - anchor) * worldHeight / size.height);
+    camera.updateMatrixWorld();
+    invalidate();
+  }, [anchor, camera, size.width, size.height, invalidate]);
+  return null;
+}
+
 interface BandProps {
   maxSpeed?: number;
   minSpeed?: number;
   isMobile?: boolean;
+  dropIn?: boolean;
   frontImage?: string | null;
   backImage?: string | null;
   imageFit?: 'cover' | 'contain';
@@ -153,12 +177,17 @@ function Band({
   maxSpeed = 50,
   minSpeed = 0,
   isMobile = false,
+  dropIn = false,
   frontImage = null,
   backImage = null,
   imageFit = 'contain',
   lanyardImage = null,
   lanyardWidth = 0.65
 }: BandProps) {
+  const entranceOffset = dropIn ? 7 : 0;
+  const [entrance] = useState(() => ({ x: 2.2 + Math.random() * 0.8, twist: (Math.random() - 0.5) * 0.5 }));
+  const entranceStarted = useRef<number | null>(null);
+  const entranceComplete = useRef(!dropIn);
   const size = useThree(state => state.size);
   const lineParameters = useMemo(() => ({ resolution: new THREE.Vector2(size.width, size.height) }), [size.width, size.height]);
   const band = useRef<THREE.Mesh<InstanceType<typeof MeshLineGeometry>, InstanceType<typeof MeshLineMaterial>>>(null!);
@@ -171,14 +200,13 @@ function Band({
   const vec = new THREE.Vector3();
   const ang = new THREE.Vector3();
   const rot = new THREE.Vector3();
-  const dir = new THREE.Vector3();
 
   const segmentProps: RigidBodyProps = {
     type: 'dynamic',
     canSleep: true,
     colliders: false,
-    angularDamping: 4,
-    linearDamping: 4
+    angularDamping: 2.6,
+    linearDamping: 2.6
   };
 
   const getLerped = (body: LanyardRigidBody): THREE.Vector3 => {
@@ -264,22 +292,32 @@ function Band({
   ]);
 
   useEffect(() => {
-    if (hovered) {
+    if (hovered || dragged) {
+      const previousSelection = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
       document.body.style.cursor = dragged ? 'grabbing' : 'grab';
       return () => {
         document.body.style.cursor = 'auto';
+        document.body.style.userSelect = previousSelection;
       };
     }
   }, [hovered, dragged]);
 
   useFrame((state, delta) => {
+    if (dropIn && !entranceComplete.current && fixed.current) {
+      if (entranceStarted.current === null) entranceStarted.current = state.clock.elapsedTime;
+      const progress = THREE.MathUtils.clamp((state.clock.elapsedTime - entranceStarted.current) / 0.9, 0, 1);
+      const remaining = 1 - progress;
+      fixed.current.setNextKinematicTranslation({ x: entrance.x * remaining ** 2, y: 4 + entranceOffset * remaining ** 3, z: 0 });
+      if (progress === 1) entranceComplete.current = true;
+    }
+
     if (dragged && typeof dragged !== 'boolean') {
-      vec.set(state.pointer.x, state.pointer.y, 0.5).unproject(state.camera);
-      dir.copy(vec).sub(state.camera.position).normalize();
-      vec.add(dir.multiplyScalar(state.camera.position.length()));
+      state.raycaster.setFromCamera(state.pointer, state.camera);
+      state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), vec);
       [card, j1, j2, j3, fixed].forEach(ref => ref.current?.wakeUp());
       card.current?.setNextKinematicTranslation({
-        x: THREE.MathUtils.clamp(vec.x - dragged.x, -Math.max(0.2, state.viewport.width / 2 - 1), Math.max(0.2, state.viewport.width / 2 - 1)),
+        x: THREE.MathUtils.clamp(vec.x - dragged.x, state.camera.position.x - state.viewport.width / 2 + 0.8, state.camera.position.x + state.viewport.width / 2 - 0.8),
         y: THREE.MathUtils.clamp(vec.y - dragged.y, -state.viewport.height / 2 + 1.25, state.viewport.height / 2 - 1.5),
         z: vec.z - dragged.z
       });
@@ -305,8 +343,8 @@ function Band({
 
   return (
     <>
-      <group position={[0, 4, 0]}>
-        <RigidBody ref={fixed} {...segmentProps} type="fixed" />
+      <group position={[dropIn ? entrance.x : 0, 4 + entranceOffset, 0]}>
+        <RigidBody ref={fixed} {...segmentProps} type={dropIn ? 'kinematicPosition' : 'fixed'} />
         <RigidBody position={[0, -1, 0]} ref={j1} {...segmentProps} type="dynamic">
           <BallCollider args={[0.1]} />
         </RigidBody>
@@ -318,6 +356,7 @@ function Band({
         </RigidBody>
         <RigidBody
           position={[0, -4.45, 0]}
+          rotation={dropIn ? [0.12, entrance.twist, -0.35] : [0, 0, 0]}
           ref={card}
           {...segmentProps}
           type={dragged ? 'kinematicPosition' : 'dynamic'}
